@@ -29,7 +29,6 @@ class Server {
 
             while (1) {
                 char request = '0';
-                print_files_map();
                 if (recv(socket_fd, &request, sizeof(request), 0) < 0) {
                     printf("client unreachable\n");
                     index_cleanup(peer_port);
@@ -58,21 +57,15 @@ class Server {
         }
 
         void register_(int socket_fd, int peer_id) {
-            std::cout << "adding file to index" << std::endl;
-
             char buffer[MAX_FILENAME_SIZE];
             if (recv(socket_fd, buffer, MAX_FILENAME_SIZE, 0) < 0)
                 error("ERROR receiving\n");
             
             if(!(std::find(file_to_peer_map[std::string(buffer)].begin(), file_to_peer_map[std::string(buffer)].end(), peer_id) != file_to_peer_map[std::string(buffer)].end()))
                 file_to_peer_map[std::string(buffer)].push_back(peer_id);
-            else 
-                std::cout << "file already indexed" << std::endl;
         }
 
         void deregister_(int socket_fd, int peer_id) {
-            std::cout << "reomving file from index" << std::endl;
-
             char buffer[MAX_FILENAME_SIZE];
             if (recv(socket_fd, buffer, MAX_FILENAME_SIZE, 0) < 0)
                 error("ERROR receiving\n");
@@ -94,16 +87,12 @@ class Server {
         }
 
         void search(int socket_fd) {
-            std::cout << "requesting to search for a file" << std::endl;
-
             char buffer[MAX_FILENAME_SIZE];
             if (recv(socket_fd, buffer, sizeof(buffer), 0) < 0)
                 error("ERROR receiving\n");
-            std::cout << "searching index for file: " << buffer << std::endl;
 
             std::ostringstream ss;
             if (file_to_peer_map.count(std::string(buffer)) > 0) {
-                std::cout << buffer << " found" << std::endl;
                 std::string separator;
                 for (auto && x : file_to_peer_map[buffer]) {
                     ss << separator << x;
@@ -122,7 +111,7 @@ class Server {
             for (auto const& x : file_to_peer_map) {
                 std::cout << x.first << ':';
                 for (auto i = x.second.begin(); i != x.second.end(); ++i)
-                    std::cout << *i << ',';
+                    std::cout << *i << '\t';
                 std::cout << std::endl;
             }
         }
@@ -157,7 +146,7 @@ class Server {
                 if ((client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&cli_addr, &cli_len)) < 0)
                     error("ERROR on accept\n");
 
-                printf("server: got connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+                std::cout << "got connection from " << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << std::endl;
 
                 std::thread t(&Server::handle_client_request, this, client_socket_fd);
                 t.detach();

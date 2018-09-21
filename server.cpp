@@ -32,6 +32,7 @@ class Server {
                 print_files_map();
                 if (recv(socket_fd, &request, sizeof(request), 0) < 0) {
                     printf("client unreachable\n");
+                    index_cleanup(peer_port);
                     close(socket_fd);
                     return;
                 }
@@ -48,6 +49,7 @@ class Server {
                             break;
                         default:
                             printf("client unreachable\n");
+                            index_cleanup(peer_port);
                             close(socket_fd);
                             return;
                     }
@@ -78,6 +80,17 @@ class Server {
             file_to_peer_map[std::string(buffer)].erase(std::remove(file_to_peer_map[std::string(buffer)].begin(), file_to_peer_map[std::string(buffer)].end(), peer_id), file_to_peer_map[std::string(buffer)].end());
             if (file_to_peer_map[std::string(buffer)].size() == 0)
                 file_to_peer_map.erase(std::string(buffer));
+        }
+
+        void index_cleanup(int peer_id) {
+            std::unordered_map<std::string, std::vector<int>> tmp_map;
+            for (auto const& x : file_to_peer_map) {
+                std::vector<int> tmp_vector = x.second;
+                tmp_vector.erase(std::remove(tmp_vector.begin(), tmp_vector.end(), peer_id), tmp_vector.end());
+                if (tmp_vector.size() > 0)
+                    tmp_map[x.first] = tmp_vector;
+            }
+            file_to_peer_map = tmp_map;
         }
 
         void search(int socket_fd) {

@@ -9,6 +9,8 @@
 #include <sys/sendfile.h>
 
 #include <thread>
+#include <utility>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 #include <iostream>
@@ -22,7 +24,7 @@
 
 class Peer {
     private:
-        std::vector<std::string> files;
+        std::vector<std::pair<std::string, int>> files;
 
         void error(const char *msg) {
             perror(msg);
@@ -94,14 +96,15 @@ class Peer {
             peer_port = ntohs(serv_addr.sin_port);
         }
 
-        std::vector<std::string> get_files() {
-            std::vector<std::string> tmp_files;
+        std::vector<std::pair<std::string, int>> get_files() {
+            std::vector<std::pair<std::string, int>> tmp_files;
             if (auto dir = opendir(files_directory)) {
                 while (auto f = readdir(dir)) {
                     if (!f->d_name || f->d_name[0] == '.' || (f->d_name[0] == '.' && f->d_name[1] == '.'))
                         continue;
-                    if(!(std::find(tmp_files.begin(), tmp_files.end(), f->d_name) != tmp_files.end()))
-                        tmp_files.push_back(f->d_name);
+                    std::pair<std::string, int> file_info = std::make_pair(f->d_name, 1);
+                    if(!(std::find(tmp_files.begin(), tmp_files.end(), file_info) != tmp_files.end()))
+                        tmp_files.push_back(file_info);
                 }
                 closedir(dir);
             }
@@ -138,7 +141,7 @@ class Peer {
             char buffer[MAX_FILENAME_SIZE];
 
             while (1) {
-                std::vector<std::string> tmp_files = get_files();
+                std::vector<std::pair<std::string, int>> tmp_files = get_files();
                 for(auto&& x: files) {
                     char request = '1';
                     if(!(std::find(tmp_files.begin(), tmp_files.end(), x) != tmp_files.end()))
@@ -147,7 +150,7 @@ class Peer {
                     if (n < 0)
                         error("ERROR writing to socket");
                     bzero(buffer, MAX_FILENAME_SIZE);
-                    strcpy(buffer, x.c_str());
+                    strcpy(buffer, x.first.c_str());
                     n = send(socket_fd, buffer, MAX_FILENAME_SIZE, 0);
                     if (n < 0)
                         error("ERROR writing to socket");

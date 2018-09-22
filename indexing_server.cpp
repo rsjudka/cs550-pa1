@@ -28,7 +28,7 @@ class IndexingServer {
         void handle_client_requests(int client_socket_fd) {
             int client_id;
             if (recv(client_socket_fd, &client_id, sizeof(client_id), 0) < 0) {
-                std::cout << "client unidentified: closing connection" << std::endl;
+                std::cout << "client unidentified: closing connection\n" << std::endl;
                 close(client_socket_fd);
                 return;
             }
@@ -37,7 +37,7 @@ class IndexingServer {
             while (1) {
                 request = '0';
                 if (recv(client_socket_fd, &request, sizeof(request), 0) < 0) {
-                    std::cout << "client unreachable: closing connection and cleaning up index" << std::endl;
+                    std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
                     files_index_cleanup(client_id);
                     close(client_socket_fd);
                     return;
@@ -54,12 +54,12 @@ class IndexingServer {
                         search(client_socket_fd, client_id);
                         break;
                     case '0':
-                        std::cout << "client disconnected: closing connection and cleaning up index" << std::endl;
+                        std::cout << "client disconnected: closing connection and cleaning up index\n" << std::endl;
                         files_index_cleanup(client_id);
                         close(client_socket_fd);
                         return;
                     default:
-                        std::cout << "unexpected request: closing connection and cleaning up index" << std::endl;
+                        std::cout << "unexpected request: closing connection and cleaning up index\n" << std::endl;
                         files_index_cleanup(client_id);
                         close(client_socket_fd);
                         return;
@@ -70,7 +70,7 @@ class IndexingServer {
         void registry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index" << std::endl;
+                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
                 files_index_cleanup(client_id);
                 close(client_socket_fd);
                 return;
@@ -84,7 +84,7 @@ class IndexingServer {
         void deregistry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index" << std::endl;
+                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
                 files_index_cleanup(client_id);
                 close(client_socket_fd);
                 return;
@@ -111,7 +111,7 @@ class IndexingServer {
         void search(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index" << std::endl;
+                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
                 files_index_cleanup(client_id);
                 close(client_socket_fd);
                 return;
@@ -131,7 +131,7 @@ class IndexingServer {
             char buffer_[MAX_MSG_SIZE];
             strcpy(buffer_, client_ids.str().c_str());
             if (send(client_socket_fd, buffer_, sizeof(buffer_), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index" << std::endl;
+                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
                 files_index_cleanup(client_id);
                 close(client_socket_fd);
                 return;

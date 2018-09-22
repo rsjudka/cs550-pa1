@@ -1,6 +1,5 @@
 #include <string.h>
 #include <unistd.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <dirent.h>
@@ -9,10 +8,7 @@
 #include <sys/sendfile.h>
 
 #include <thread>
-#include <utility>
-#include <functional>
 #include <mutex>
-#include <unordered_map>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -23,6 +19,7 @@
 #define INDEXING_SERVER_PORT 9999
 #define MAX_FILENAME_SIZE 256
 #define MAX_MSG_SIZE 4096
+#define MAX_STAT_MSG_SIZE 16
 
 
 class Peer {
@@ -34,57 +31,57 @@ class Peer {
             exit(1);
         }
 
-        void handle_client_request(int socket_fd) {
-            retrieve(socket_fd);
+        void handle_client_request(int client_socket_fd) {
+            retrieve(client_socket_fd);
 
-            close(socket_fd);
+            close(client_socket_fd);
         }
 
-        void retrieve(int socket_fd) {
+        void retrieve(int client_socket_fd) {
             char buffer[MAX_FILENAME_SIZE];
-            if (recv(socket_fd, buffer, MAX_FILENAME_SIZE, 0) < 0)
-                error("ERROR receiving\n");
+            if (recv(client_socket_fd, buffer, MAX_FILENAME_SIZE, 0) < 0) {
+                std::cout << "client unreachable" << std::endl;
+                return;
+            }
             
-            std::ostringstream ss;
-            ss << std::string(files_directory_path);
-            ss << std::string(buffer);
-            int fd = open(ss.str().c_str(), O_RDONLY);
+            std::ostringstream filename;
+            filename << std::string(files_directory_path);
+            filename << std::string(buffer);
+            int fd = open(filename.str().c_str(), O_RDONLY);
             if (fd == -1) {
-                int n = send(socket_fd, "-1", 16, 0);
-                if (n < 0)
-                    printf("client unreachable\n");
+                if (send(client_socket_fd, "-1", MAX_STAT_MSG_SIZE, 0) < 0)
+                    std::cout << "client unreachable" << std::endl;
+                return;
             }
             else {
-                /* Get file stats */
                 struct stat file_stat;
                 if (fstat(fd, &file_stat) < 0) {
-                    int n = send(socket_fd, "-2", 16, 0);
-                    if (n < 0)
-                        printf("client unreachable\n");
+                    if (send(client_socket_fd, "-2", MAX_STAT_MSG_SIZE, 0) < 0)
+                        std::cout << "client unreachable" << std::endl;
                 }
+                else {
+                    char file_size[MAX_STAT_MSG_SIZE];
+                    sprintf(file_size, "%ld", file_stat.st_size);
 
-                char file_size[16];
-                sprintf(file_size, "%ld", file_stat.st_size);
+                    if (send(client_socket_fd, file_size, sizeof(file_size), 0) < 0) {
+                        std::cout << "client unreachable" << std::endl;
+                        return;
+                    }
 
-                /* Sending file size */
-                int n = send(socket_fd, file_size, sizeof(file_size), 0);
-                if (n < 0)
-                    printf("client unreachable\n");
-
-                off_t offset = 0;
-                int remain_data = file_stat.st_size;
-                int sent_bytes = 0;
-                /* Sending file data */
-                while (((sent_bytes = sendfile(socket_fd, fd, &offset, 4096)) > 0) && (remain_data > 0))
-                    remain_data -= sent_bytes;
-                close(fd);
+                    off_t offset = 0;
+                    int remaining_size = file_stat.st_size;
+                    int sent_size = 0;
+                    while (((sent_size = sendfile(client_socket_fd, fd, &offset, MAX_MSG_SIZE)) > 0) && (remaining_size > 0))
+                        remaining_size -= sent_size;
+                }
             }
+            close(fd);
         }
 
     public:
         std::string files_directory_path;
-        int __port;
-        int __socket_fd;
+        int port;
+        int socket_fd;
 
         Peer(std::string path) {
             files_directory_path = path;
@@ -99,42 +96,46 @@ class Peer {
             addr.sin_family = AF_INET;
             addr.sin_addr.s_addr = INADDR_ANY;
 
-            __socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+            socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-            if (bind(__socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
+            if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
                 error("failed to start peer server");
             
-            getsockname(__socket_fd, (struct sockaddr *)&addr, &addr_size);
-            __port = ntohs(addr.sin_port);
+            getsockname(socket_fd, (struct sockaddr *)&addr, &addr_size);
+            port = ntohs(addr.sin_port);
         }
 
         std::vector<std::pair<std::string, time_t>> get_files() {
             std::vector<std::pair<std::string, time_t>> tmp_files;
             
-            if (auto dir = opendir(files_directory_path.c_str())) {
-                while (auto f = readdir(dir)) {
-                    if (!f->d_name || f->d_name[0] == '.' || (f->d_name[0] == '.' && f->d_name[1] == '.'))
+            if (auto directory = opendir(files_directory_path.c_str())) {
+                while (auto file = readdir(directory)) {
+                    if (!file->d_name || strcmp(file->d_name, ".") == 0 || strcmp(file->d_name, "..") == 0 || file->d_type == DT_DIR)
                         continue;
                     
-                    std::ostringstream f_path;
-                    f_path << files_directory_path;
-                    f_path << std::string(f->d_name);
+                    std::ostringstream file_path;
+                    file_path << files_directory_path;
+                    file_path << std::string(file->d_name);
                     
-                    int fd = open(f_path.str().c_str(), O_RDONLY);
-                    if (fd == -1)
-                        error("ERROR opening file\n");
+                    int fd = open(file_path.str().c_str(), O_RDONLY);
+                    if (fd == -1) {
+                        std::cout << "unable to register \"" << file->d_name << "\"" << std::endl;
+                        continue;
+                    }
                     
                     struct stat file_stat;
-                    if (fstat(fd, &file_stat) < 0)
-                        error("ERROR fstat\n");
+                    if (fstat(fd, &file_stat) < 0) {
+                        std::cout << "unable to register \"" << file->d_name << "\"" << std::endl;
+                        continue;
+                    }
                     close(fd);
 
                     time_t modified_time = file_stat.st_mtim.tv_sec;
-                    std::pair<std::string, time_t> file_info = std::make_pair(f->d_name, modified_time);
+                    std::pair<std::string, time_t> file_info = std::make_pair(file->d_name, modified_time);
                     if(!(std::find(tmp_files.begin(), tmp_files.end(), file_info) != tmp_files.end()))
                         tmp_files.push_back(file_info);
                 }
-                closedir(dir);
+                closedir(directory);
             }
             else {
                 error("invalid directory");
@@ -224,26 +225,26 @@ class Peer {
             std::cout << "peer: ";
             char peer[6];
             std::cin >> peer;
-            if (atoi(peer) == __port) {
-                std::cout << "peer is current client: no connection needed" << std::endl;
+            if (atoi(peer) == port) {
+                std::cout << "peer is current client" << std::endl;
                 return;
             }
-            int __socket_fd = connect_server(atoi(peer), false);
+            int socket_fd = connect_server(atoi(peer), false);
             
             std::cout << "filename: ";
             char filename[MAX_FILENAME_SIZE];
             std::cin >> filename;
-            if (send(__socket_fd, filename, sizeof(filename), 0) < 0)
+            if (send(socket_fd, filename, sizeof(filename), 0) < 0)
                 error("ERROR writing to socket");
             
-            char buffer[16];
-            if (recv(__socket_fd, buffer, sizeof(buffer), 0) < 0)
+            char buffer[MAX_STAT_MSG_SIZE];
+            if (recv(socket_fd, buffer, sizeof(buffer), 0) < 0)
                 error("ERROR receiving\n");
             int file_size = atoi(buffer);
             if (file_size == -1)
-                std::cout << "file does not exist: no transfer completed" << std::endl;
+                std::cout << "file does not exist" << std::endl;
             else if (file_size == -2)
-                std::cout << "could not read file stats: no tranfer completed" << std::endl;
+                std::cout << "could not read file stats" << std::endl;
             else {
                 std::string local_filename = resolve_filename(filename, peer);
                 FILE *file = fopen(local_filename.c_str(), "w");
@@ -251,20 +252,21 @@ class Peer {
                     error("ERROR opening file");
 
                 char buffer_[MAX_MSG_SIZE];
-                int recv_size;
-                while (((recv_size = recv(__socket_fd, buffer_, sizeof(buffer_), 0)) > 0) && (file_size > 0)) {
-                        fwrite(buffer_, sizeof(char), recv_size, file);
-                        file_size -= recv_size;
+                int remaining_size = file_size;
+                int received_size;
+                while (((received_size = recv(socket_fd, buffer_, sizeof(buffer_), 0)) > 0) && (remaining_size > 0)) {
+                    fwrite(buffer_, sizeof(char), received_size, file);
+                    remaining_size -= received_size;
                 }
                 fclose(file);
             }
-            close(__socket_fd);
+            close(socket_fd);
         }
         
         void run_client() {
             int server_socket_fd = connect_server(INDEXING_SERVER_PORT);
 
-            if (send(server_socket_fd, &__port, sizeof(__port), 0) < 0)
+            if (send(server_socket_fd, &port, sizeof(port), 0) < 0)
                 error("client unreachable");
 
             std::thread t(&Peer::register_files, this, server_socket_fd);
@@ -302,9 +304,9 @@ class Peer {
             int client_socket_fd;
 
             while (1) {
-                listen(__socket_fd, 5);
+                listen(socket_fd, 5);
 
-                if ((client_socket_fd = accept(__socket_fd, (struct sockaddr*)&addr, &addr_size)) < 0) {
+                if ((client_socket_fd = accept(socket_fd, (struct sockaddr*)&addr, &addr_size)) < 0) {
                     std::cout << "failed client connection: " << inet_ntoa(addr.sin_addr) << '@' << ntohs(addr.sin_port) << '\n' << std::endl;
                     continue;
                 }
@@ -325,7 +327,7 @@ class Peer {
         }
 
         ~Peer() {
-            close(__socket_fd);
+            close(socket_fd);
         }
 };
 

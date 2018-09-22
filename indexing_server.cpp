@@ -155,7 +155,8 @@ class IndexingServer {
 
         IndexingServer() {
             struct sockaddr_in addr;
-            bzero((char*)&addr, sizeof(addr));
+            socklen_t addr_size = sizeof(addr);
+            bzero((char*)&addr, addr_size);
             
             addr.sin_family = AF_INET;
             addr.sin_addr.s_addr = INADDR_ANY;
@@ -163,7 +164,7 @@ class IndexingServer {
 
             socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-            if (bind(socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+            if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
                 error("failed to start indexing server");
         }
 

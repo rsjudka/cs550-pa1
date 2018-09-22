@@ -18,16 +18,18 @@
 #include <vector>
 #include <algorithm>
 
+
 #define HOST "localhost"
 #define INDEXING_SERVER_PORT 9999
 #define MAX_FILENAME_SIZE 256
+
 
 class Peer {
     private:
         std::vector<std::pair<std::string, time_t>> files;
 
-        void error(const char *msg) {
-            perror(msg);
+        void error(std::string msg) {
+            std::cerr << "[ERROR] " << msg << std::endl;
             exit(1);
         }
 
@@ -308,6 +310,8 @@ class Peer {
 
 
 int main(int argc, char *argv[]) {
+    if (argc < 2)
+        std::cerr << "usage: " << argv[0] << "directory_path" << std::endl;
     Peer peer(argv[1]);
     peer.run();
 

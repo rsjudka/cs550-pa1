@@ -230,6 +230,10 @@ class Peer {
                 return;
             }
             int socket_fd = connect_server(atoi(peer), false);
+            if (socket_fd < 0) {
+                std::cout << "failed peer connection" << std::endl;
+                return;
+            }
             
             std::cout << "filename: ";
             char filename[MAX_FILENAME_SIZE];

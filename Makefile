@@ -1,7 +1,7 @@
-all: client server
+all: peer indexing_server
 
-client: client.cpp
-	g++ client.cpp -std=c++11 -pthread -o client
+peer: peer.cpp
+	g++ peer.cpp -std=c++11 -pthread -o peer
 
-server: server.cpp
-	g++ server.cpp -std=c++11 -pthread -o server
+indexing_server: indexing_server.cpp
+	g++ indexing_server.cpp -std=c++11 -pthread -o indexing_server

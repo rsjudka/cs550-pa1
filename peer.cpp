@@ -54,8 +54,11 @@ class Peer {
             else {
                 /* Get file stats */
                 struct stat file_stat;
-                if (fstat(fd, &file_stat) < 0)
-                    error("ERROR fstat\n");
+                if (fstat(fd, &file_stat) < 0) {
+                    int n = send(socket_fd, "-2", 16, 0);
+                    if (n < 0)
+                        printf("client unreachable\n");
+                }
 
                 char file_size[16];
                 sprintf(file_size, "%ld", file_stat.st_size);
@@ -193,91 +196,96 @@ class Peer {
                 std::cout << "request [(s)earch|(r)etrieve|(q)uit]: ";
                 std::cin >> request;
 
-                if (request[0] == 's') {
-                    std::cout << "filename: ";
-                    char filename[MAX_FILENAME_SIZE];
-                    std::cin >> filename;
-                    n = send(socket_fd, "3", sizeof(char), 0);
-                    if (n < 0)
-                        error("ERROR writing to socket");
-                    n = send(socket_fd, filename, sizeof(filename), 0);
-                    if (n < 0)
-                        error("ERROR writing to socket");
-                    bzero(buffer, 4096);
-                    n = recv(socket_fd, buffer, 4096, 0);
-                    if (n < 0)
-                        error("ERROR reading from socket");
-                    else if (!buffer[0])
-                        std::cout << "file not found" << std::endl;
-                    else 
-                        std::cout << "peer(s) with file: " << buffer << std::endl;
-                }
-                else if (request[0] == 'r') {
-                    std::cout << "peer: ";
-                    char peer[6];
-                    std::cin >> peer;
-                    peer[5] = '\0';
-                    if (atoi(peer) == peer_port) {
-                        std::cout << "you are " << peer_port << std::endl;
-                        continue;
-                    }
-                    int peer_socket_fd = join(atoi(peer));
-                    std::cout << "filename: ";
-                    char filename[MAX_FILENAME_SIZE];
-                    std::cin >> filename;
-                    n = send(peer_socket_fd, filename, sizeof(filename), 0);
-                    if (n < 0)
-                        error("ERROR writing to socket");
-
-                    char file_size_[16];
-                    recv(peer_socket_fd, file_size_, sizeof(file_size_), 0);
-                    int file_size = atoi(file_size_);
-                    if (file_size < 0) {
-                        std::cout << "file dne" << std::endl;
-                    }
-                    else {
-                        std::ostringstream ss;
-                        ss << std::string(files_directory);
-                        std::string fn = std::string(filename);
-                        size_t extension_idx = fn.find_last_of('.');
-                        ss << fn.substr(0,extension_idx);
-                        if ((std::find_if(files.begin(), files.end(), [filename](const std::pair<std::string, int>& element){ return element.first == filename;}) != files.end()))
-                            ss << "-origin-" << std::string(peer);
-                        ss << fn.substr(extension_idx, fn.size()-extension_idx);
-                        FILE *received_file = fopen(ss.str().c_str(), "w");
-                        if (received_file == NULL)
-                            error("ERROR opening file");
-
-                        int remain_data = file_size;
-
-                        while (((n = recv(peer_socket_fd, buffer, sizeof(buffer), 0)) > 0) && (remain_data > 0)) {
-                                fwrite(buffer, sizeof(char), n, received_file);
-                                remain_data -= n;
+                switch (request[0]) {
+                    case 's':
+                    case 'S': {
+                        std::cout << "filename: ";
+                        char filename[MAX_FILENAME_SIZE];
+                        std::cin >> filename;
+                        n = send(socket_fd, "3", sizeof(char), 0);
+                        if (n < 0)
+                            error("ERROR writing to socket");
+                        n = send(socket_fd, filename, sizeof(filename), 0);
+                        if (n < 0)
+                            error("ERROR writing to socket");
+                        bzero(buffer, 4096);
+                        n = recv(socket_fd, buffer, 4096, 0);
+                        if (n < 0)
+                            error("ERROR reading from socket");
+                        else if (!buffer[0])
+                            std::cout << "file not found" << std::endl;
+                        else 
+                            std::cout << "peer(s) with file: " << buffer << std::endl;
+                    } break;
+                    case 'r':
+                    case 'R': {
+                        std::cout << "peer: ";
+                        char peer[6];
+                        std::cin >> peer;
+                        peer[5] = '\0';
+                        if (atoi(peer) == peer_port) {
+                            std::cout << "you are " << peer_port << std::endl;
+                            continue;
                         }
-                        fclose(received_file);
-                    }
-                    close(peer_socket_fd);
+                        int peer_socket_fd = join(atoi(peer));
+                        std::cout << "filename: ";
+                        char filename[MAX_FILENAME_SIZE];
+                        std::cin >> filename;
+                        n = send(peer_socket_fd, filename, sizeof(filename), 0);
+                        if (n < 0)
+                            error("ERROR writing to socket");
+
+                        char file_size_[16];
+                        recv(peer_socket_fd, file_size_, sizeof(file_size_), 0);
+                        int file_size = atoi(file_size_);
+                        if (file_size == -1)
+                            std::cout << "file dne" << std::endl;
+                        else if (file_size == -2)
+                            std::cout << "error reading file stats" << std::endl;
+                        else {
+                            std::ostringstream ss;
+                            ss << std::string(files_directory);
+                            std::string fn = std::string(filename);
+                            size_t extension_idx = fn.find_last_of('.');
+                            ss << fn.substr(0,extension_idx);
+                            if ((std::find_if(files.begin(), files.end(), [filename](const std::pair<std::string, int>& element){ return element.first == filename;}) != files.end()))
+                                ss << "-origin-" << std::string(peer);
+                            ss << fn.substr(extension_idx, fn.size()-extension_idx);
+                            FILE *received_file = fopen(ss.str().c_str(), "w");
+                            if (received_file == NULL)
+                                error("ERROR opening file");
+
+                            int remain_data = file_size;
+
+                            while (((n = recv(peer_socket_fd, buffer, sizeof(buffer), 0)) > 0) && (remain_data > 0)) {
+                                    fwrite(buffer, sizeof(char), n, received_file);
+                                    remain_data -= n;
+                            }
+                            fclose(received_file);
+                        }
+                        close(peer_socket_fd);
+                    } break;
+                    case 'q':
+                    case 'Q': {
+                        close(socket_fd);
+                        exit(0);
+                    } break;
+                    default: {
+                        std::cout << "unexpected request" << std::endl;
+                    } break;
                 }
-                else if (request[0] == 'q') {
-                    close(socket_fd);
-                    exit(0);
-                }
-                else
-                    std::cout << "unexpected request" << std::endl;
             }
         }
 
         void run_server() {
-            struct sockaddr_in cli_addr;
-            socklen_t cli_len;
+            struct sockaddr_in addr;
+            socklen_t addr_size = sizeof(addr);
             int client_socket_fd;
-
-            cli_len = sizeof(cli_addr);
 
             while (1) {
                 listen(peer_socket_fd, 5);
 
-                if ((client_socket_fd = accept(peer_socket_fd, (struct sockaddr*)&cli_addr, &cli_len)) < 0)
+                if ((client_socket_fd = accept(peer_socket_fd, (struct sockaddr*)&addr, &addr_size)) < 0)
                     error("ERROR on accept\n");
 
                 std::thread t(&Peer::handle_client_request, this, client_socket_fd);

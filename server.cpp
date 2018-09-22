@@ -96,7 +96,7 @@ class Server {
                 std::string separator;
                 for (auto && x : file_to_peer_map[buffer]) {
                     ss << separator << x;
-                    separator = ",";
+                    separator = ',';
                 }
             }
 

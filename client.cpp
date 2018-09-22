@@ -24,7 +24,7 @@
 
 class Peer {
     private:
-        std::vector<std::pair<std::string, int>> files;
+        std::vector<std::pair<std::string, time_t>> files;
 
         void error(const char *msg) {
             perror(msg);
@@ -68,6 +68,7 @@ class Peer {
             /* Sending file data */
             while (((sent_bytes = sendfile(socket_fd, fd, &offset, BUFSIZ)) > 0) && (remain_data > 0))
                 remain_data -= sent_bytes;
+            close(fd);
         }
 
     public:
@@ -96,13 +97,24 @@ class Peer {
             peer_port = ntohs(serv_addr.sin_port);
         }
 
-        std::vector<std::pair<std::string, int>> get_files() {
-            std::vector<std::pair<std::string, int>> tmp_files;
+        std::vector<std::pair<std::string, time_t>> get_files() {
+            std::vector<std::pair<std::string, time_t>> tmp_files;
             if (auto dir = opendir(files_directory)) {
                 while (auto f = readdir(dir)) {
                     if (!f->d_name || f->d_name[0] == '.' || (f->d_name[0] == '.' && f->d_name[1] == '.'))
                         continue;
-                    std::pair<std::string, int> file_info = std::make_pair(f->d_name, 1);
+                    std::ostringstream ss;
+                    ss << std::string(files_directory);
+                    ss << std::string(f->d_name);
+                    int fd = open(ss.str().c_str(), O_RDONLY);
+                    if (fd == -1)
+                        error("ERROR opening file\n");
+                    struct stat file_stat;
+                    if (fstat(fd, &file_stat) < 0)
+                        error("ERROR fstat\n");
+                    time_t modified_time = file_stat.st_mtim.tv_sec;
+                    close(fd);
+                    std::pair<std::string, time_t> file_info = std::make_pair(f->d_name, modified_time);
                     if(!(std::find(tmp_files.begin(), tmp_files.end(), file_info) != tmp_files.end()))
                         tmp_files.push_back(file_info);
                 }
@@ -141,7 +153,7 @@ class Peer {
             char buffer[MAX_FILENAME_SIZE];
 
             while (1) {
-                std::vector<std::pair<std::string, int>> tmp_files = get_files();
+                std::vector<std::pair<std::string, time_t>> tmp_files = get_files();
                 for(auto&& x: files) {
                     char request = '1';
                     if(!(std::find(tmp_files.begin(), tmp_files.end(), x) != tmp_files.end()))
@@ -159,7 +171,7 @@ class Peer {
                 sleep(5);
             }
         }
-
+        
         void run_client() {
             int socket_fd = join(INDEXING_SERVER_PORT);
             char buffer[4096];
@@ -177,7 +189,7 @@ class Peer {
                 std::cout << "request [(s)earch|(r)etrieve|(q)uit]: ";
                 std::cin >> request;
 
-                if (request == "s") {
+                if (request[0] == 's') {
                     std::cout << "filename: ";
                     char filename[MAX_FILENAME_SIZE];
                     std::cin >> filename;
@@ -196,7 +208,7 @@ class Peer {
                     else 
                         std::cout << "peer(s) with file: " << buffer << std::endl;
                 }
-                else if (request == "r") {
+                else if (request[0] == 'r') {
                     std::cout << "peer: ";
                     char peer[6];
                     std::cin >> peer;
@@ -214,7 +226,12 @@ class Peer {
 
                     std::ostringstream ss;
                     ss << std::string(files_directory);
-                    ss << std::string(filename);
+                    std::string fn = std::string(filename);
+                    size_t extension_idx = fn.find_last_of(".");
+                    ss << fn.substr(0,extension_idx);
+                    if ((std::find_if(files.begin(), files.end(), [filename](const std::pair<std::string, int>& element){ return element.first == filename;}) != files.end()))
+                        ss << "-origin-" << std::string(peer);
+                    ss << fn.substr(extension_idx, fn.size()-extension_idx);
                     FILE *received_file = fopen(ss.str().c_str(), "w");
                     if (received_file == NULL)
                         error("ERROR opening file");
@@ -228,7 +245,7 @@ class Peer {
                     fclose(received_file);
                     close(peer_socket_fd);
                 }
-                else if (request == "q") {
+                else if (request[0] == 'q') {
                     close(socket_fd);
                     exit(0);
                 }

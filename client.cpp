@@ -46,29 +46,33 @@ class Peer {
             ss << std::string(files_directory);
             ss << std::string(buffer);
             int fd = open(ss.str().c_str(), O_RDONLY);
-            if (fd == -1)
-                error("ERROR opening file\n");
+            if (fd == -1) {
+                int n = send(socket_fd, "-1", 16, 0);
+                if (n < 0)
+                    printf("client unreachable\n");
+            }
+            else {
+                /* Get file stats */
+                struct stat file_stat;
+                if (fstat(fd, &file_stat) < 0)
+                    error("ERROR fstat\n");
 
-            /* Get file stats */
-            struct stat file_stat;
-            if (fstat(fd, &file_stat) < 0)
-                error("ERROR fstat\n");
+                char file_size[16];
+                sprintf(file_size, "%ld", file_stat.st_size);
 
-            char file_size[16];
-            sprintf(file_size, "%ld", file_stat.st_size);
+                /* Sending file size */
+                int n = send(socket_fd, file_size, sizeof(file_size), 0);
+                if (n < 0)
+                    printf("client unreachable\n");
 
-            /* Sending file size */
-            int n = send(socket_fd, file_size, sizeof(file_size), 0);
-            if (n < 0)
-                printf("client unreachable\n");
-
-            off_t offset = 0;
-            int remain_data = file_stat.st_size;
-            int sent_bytes = 0;
-            /* Sending file data */
-            while (((sent_bytes = sendfile(socket_fd, fd, &offset, BUFSIZ)) > 0) && (remain_data > 0))
-                remain_data -= sent_bytes;
-            close(fd);
+                off_t offset = 0;
+                int remain_data = file_stat.st_size;
+                int sent_bytes = 0;
+                /* Sending file data */
+                while (((sent_bytes = sendfile(socket_fd, fd, &offset, 4096)) > 0) && (remain_data > 0))
+                    remain_data -= sent_bytes;
+                close(fd);
+            }
         }
 
     public:
@@ -213,6 +217,10 @@ class Peer {
                     char peer[6];
                     std::cin >> peer;
                     peer[5] = '\0';
+                    if (atoi(peer) == peer_port) {
+                        std::cout << "you are " << peer_port << std::endl;
+                        continue;
+                    }
                     int peer_socket_fd = join(atoi(peer));
                     std::cout << "filename: ";
                     char filename[MAX_FILENAME_SIZE];
@@ -221,28 +229,33 @@ class Peer {
                     if (n < 0)
                         error("ERROR writing to socket");
 
-                    recv(peer_socket_fd, buffer, BUFSIZ, 0);
-                    int file_size = atoi(buffer);
-
-                    std::ostringstream ss;
-                    ss << std::string(files_directory);
-                    std::string fn = std::string(filename);
-                    size_t extension_idx = fn.find_last_of(".");
-                    ss << fn.substr(0,extension_idx);
-                    if ((std::find_if(files.begin(), files.end(), [filename](const std::pair<std::string, int>& element){ return element.first == filename;}) != files.end()))
-                        ss << "-origin-" << std::string(peer);
-                    ss << fn.substr(extension_idx, fn.size()-extension_idx);
-                    FILE *received_file = fopen(ss.str().c_str(), "w");
-                    if (received_file == NULL)
-                        error("ERROR opening file");
-
-                    int remain_data = file_size;
-
-                    while (((n = recv(peer_socket_fd, buffer, BUFSIZ, 0)) > 0) && (remain_data > 0)) {
-                            fwrite(buffer, sizeof(char), n, received_file);
-                            remain_data -= n;
+                    char file_size_[16];
+                    recv(peer_socket_fd, file_size_, sizeof(file_size_), 0);
+                    int file_size = atoi(file_size_);
+                    if (file_size < 0) {
+                        std::cout << "file dne" << std::endl;
                     }
-                    fclose(received_file);
+                    else {
+                        std::ostringstream ss;
+                        ss << std::string(files_directory);
+                        std::string fn = std::string(filename);
+                        size_t extension_idx = fn.find_last_of('.');
+                        ss << fn.substr(0,extension_idx);
+                        if ((std::find_if(files.begin(), files.end(), [filename](const std::pair<std::string, int>& element){ return element.first == filename;}) != files.end()))
+                            ss << "-origin-" << std::string(peer);
+                        ss << fn.substr(extension_idx, fn.size()-extension_idx);
+                        FILE *received_file = fopen(ss.str().c_str(), "w");
+                        if (received_file == NULL)
+                            error("ERROR opening file");
+
+                        int remain_data = file_size;
+
+                        while (((n = recv(peer_socket_fd, buffer, sizeof(buffer), 0)) > 0) && (remain_data > 0)) {
+                                fwrite(buffer, sizeof(char), n, received_file);
+                                remain_data -= n;
+                        }
+                        fclose(received_file);
+                    }
                     close(peer_socket_fd);
                 }
                 else if (request[0] == 'q') {

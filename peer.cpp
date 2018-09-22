@@ -314,6 +314,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "usage: " << argv[0] << "directory_path" << std::endl;
         exit(0);
     }
+    
     Peer peer(argv[1]);
     peer.run();
 

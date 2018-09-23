@@ -17,7 +17,7 @@ def run_peer(peer_dir, peer_port):
         peer.stdin.flush()
     peer.stdin.write('q\n')
 
-peers = [('peers/p{}/'.format(i), '5500{}'.format(i)) for i in range(1, int(sys.argv[1])+1)]
+peers = [('peers/p{}/'.format(i), '55{:03d}'.format(i)) for i in range(1, int(sys.argv[1])+1)]
 
 for peer in peers:
     p = Process(target=run_peer, args=peer)

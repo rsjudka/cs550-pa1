@@ -14,6 +14,7 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 
 
 #define HOST "localhost"
@@ -26,6 +27,8 @@
 class Peer {
     private:
         std::vector<std::pair<std::string, time_t>> files;
+        std::ofstream server_log;
+        std::ofstream client_log;
 
         std::string time_now() {
             std::chrono::high_resolution_clock::duration now = std::chrono::high_resolution_clock::now().time_since_epoch();
@@ -297,6 +300,10 @@ class Peer {
             
             getsockname(socket_fd, (struct sockaddr *)&addr, &addr_size);
             port = ntohs(addr.sin_port);
+
+            std::string log_name_prefix = "logs/peers/" + std::to_string(port);
+            server_log.open(log_name_prefix + "_server.log");
+            client_log.open(log_name_prefix + "_client.log");
         }
         
         void run_client() {
@@ -369,6 +376,8 @@ class Peer {
 
         ~Peer() {
             close(socket_fd);
+            server_log.close();
+            client_log.close();
         }
 };
 

@@ -44,7 +44,8 @@ class IndexingServer {
         }
 
         void remove_client(int client_socket_fd, int client_id, std::string type) {
-            log(type, "closing connection and cleaning up index");
+            std::string msg = "closing connection for client ID '" + std::to_string(client_id) + "' and cleaning up index";
+            log(type, msg);
             files_index_cleanup(client_id);
             close(client_socket_fd);
         }

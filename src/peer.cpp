@@ -226,12 +226,12 @@ class Peer {
             char peer[6];
             std::cin >> peer;
             if (atoi(peer) == port) {
-                std::cout << "\npeer " << peer << " is current client: no retreival performed\n" << std::endl;
+                std::cout << "\npeer '" << peer << "' is current client: no retreival performed\n" << std::endl;
                 return;
             }
             int peer_socket_fd = connect_server(atoi(peer), false);
             if (peer_socket_fd < 0) {
-                std::cout << "\npeer " << peer << " is not valid: no retreival performed\n" << std::endl;
+                std::cout << "\npeer '" << peer << "' is not valid: no retreival performed\n" << std::endl;
                 log(client_log, "failed peer server connection", "ignoring request");
                 return;
             }
@@ -252,7 +252,7 @@ class Peer {
                 else {
                     int file_size = atoi(buffer);
                     if (file_size == -1)
-                        std::cout << "\nfile \"" << filename << "\" does not exist: no retreival performed\n" << std::endl;
+                        std::cout << "\npeer '" << peer << "' does not have file \"" << filename << "\": no retreival performed\n" << std::endl;
                     else if (file_size == -2)
                         std::cout << "\ncould not read file \"" << filename << "\"'s stats: no retreival performed\n" << std::endl;
                     else {
@@ -261,7 +261,7 @@ class Peer {
                         std::string local_filename = local_filename_path.substr(filename_idx+1, local_filename_path.size() - filename_idx);
                         FILE *file = fopen(local_filename_path.c_str(), "w");
                         if (file == NULL) {
-                            std::cout << "\nunable to create new file \"" << local_filename << "\"\n" << std::endl;
+                            std::cout << "\nunable to create new file \"" << local_filename << "\": no retreival performed\n" << std::endl;
                             log(client_log, "failed file open", "ignoring file");
                         }
                         else {
@@ -287,7 +287,7 @@ class Peer {
         int port;
         int socket_fd;
 
-        Peer(std::string path) {
+        Peer(std::string path, int custom_port) {
             files_directory_path = path;
             if (files_directory_path.back() != '/')
                 files_directory_path += '/';
@@ -299,6 +299,9 @@ class Peer {
             
             addr.sin_family = AF_INET;
             addr.sin_addr.s_addr = INADDR_ANY;
+            if (custom_port > 0) {
+                addr.sin_port = htons(custom_port);
+            }
 
             socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -398,8 +401,13 @@ int main(int argc, char *argv[]) {
         std::cerr << "usage: " << argv[0] << " path" << std::endl;
         exit(0);
     }
+    
+    int port = 0;
+    if (argc == 3) {
+        port = atoi(argv[2]);
+    }
 
-    Peer peer(argv[1]);
+    Peer peer(argv[1], port);
     peer.run();
 
     return 0;

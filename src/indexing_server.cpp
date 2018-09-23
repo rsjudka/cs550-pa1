@@ -10,6 +10,7 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 
 
 #define PORT 9999
@@ -20,6 +21,10 @@
 class IndexingServer {
     private:
         std::unordered_map<std::string, std::vector<int>> files_index;
+        std::ofstream server_log;
+
+        std::mutex log_m;
+        std::mutex files_index_m;
 
         std::string time_now() {
             std::chrono::high_resolution_clock::duration now = std::chrono::high_resolution_clock::now().time_since_epoch();
@@ -28,11 +33,13 @@ class IndexingServer {
         }
 
         void log(std::string type, std::string msg) {
+            std::lock_guard<std::mutex> guard(log_m);
+            server_log << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
             std::cout << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
         }
         
         void error(std::string type) {
-            log(type, "exiting program");
+            std::cerr << "\n[" << type << "] exiting program\n" << std::endl;
             exit(1);
         }
 
@@ -68,6 +75,9 @@ class IndexingServer {
                     case '3':
                         search(client_socket_fd, client_id);
                         break;
+                    case '4':
+                        print_files_map();
+                        break;
                     case '0':
                         remove_client(client_socket_fd, client_id, "client disconnected");
                         return;
@@ -86,6 +96,7 @@ class IndexingServer {
             }
             
             std::string filename = std::string(buffer);
+            std::lock_guard<std::mutex> guard(files_index_m);
             if(!(std::find(files_index[filename].begin(), files_index[filename].end(), client_id) != files_index[filename].end()))
                 files_index[filename].push_back(client_id);
         }
@@ -98,6 +109,7 @@ class IndexingServer {
             }
  
             std::string filename = std::string(buffer);
+            std::lock_guard<std::mutex> guard(files_index_m);
             files_index[filename].erase(std::remove(files_index[filename].begin(), files_index[filename].end(), client_id), files_index[filename].end());
             if (files_index[filename].size() == 0)
                 files_index.erase(filename);
@@ -106,6 +118,7 @@ class IndexingServer {
         void files_index_cleanup(int client_id) {
             std::unordered_map<std::string, std::vector<int>> tmp_files_index;
             
+            std::lock_guard<std::mutex> guard(files_index_m);
             for (auto const &file_index : files_index) {
                 std::vector<int> tmp_client_ids = file_index.second;
                 tmp_client_ids.erase(std::remove(tmp_client_ids.begin(), tmp_client_ids.end(), client_id), tmp_client_ids.end());
@@ -127,6 +140,7 @@ class IndexingServer {
             std::ostringstream client_ids;
             if (files_index.count(filename) > 0) {
                 std::string delimiter;
+                std::lock_guard<std::mutex> guard(files_index_m);
                 for (auto &&client_id : files_index[filename]) {
                     client_ids << delimiter << client_id;
                     delimiter = ',';
@@ -142,6 +156,8 @@ class IndexingServer {
         }
 
         void print_files_map() {
+            std::lock_guard<std::mutex> guard(files_index_m);
+            std::cout << "\n__________FILES INDEX__________" << std::endl;
             for (auto const &file_index : files_index) {
                 std::cout << file_index.first << ':';
                 std::string delimiter;
@@ -151,6 +167,7 @@ class IndexingServer {
                 }
                 std::cout << std::endl;
             }
+            std::cout << "_______________________________\n" << std::endl;
         }
 
     public:
@@ -169,6 +186,8 @@ class IndexingServer {
 
             if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
                 error("failed server binding");
+
+            server_log.open("logs/indexing_server/server.log");
         }
 
         void run() {
@@ -198,6 +217,7 @@ class IndexingServer {
 
         ~IndexingServer() {
             close(socket_fd);
+            server_log.close();
         }
 };
 

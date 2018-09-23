@@ -188,6 +188,8 @@ class IndexingServer {
             if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
                 error("failed server binding");
 
+            std::cout << "starting indexing server on port " << PORT << '\n' << std::endl;
+
             server_log.open("logs/indexing_server/server.log");
         }
 

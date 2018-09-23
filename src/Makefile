@@ -1,10 +1,15 @@
-all: indexing_server peer env_dirs test_data
+all: indexing_server peer logging env_dirs test_data
 
 indexing_server: indexing_server.cpp
 	g++ indexing_server.cpp -std=c++11 -pthread -o indexing_server
 
 peer: peer.cpp
 	g++ peer.cpp -std=c++11 -pthread -o peer
+
+logging:
+	mkdir logs/
+	mkdir logs/peers/
+	mkdir logs/indexing_server/
 
 env_dirs:
 	mkdir peers/
@@ -20,10 +25,6 @@ eval_env_dirs:
 	mkdir peers/p8/
 	mkdir peers/p9/
 	mkdir peers/p10/
-
-	mkdir logs/
-	mkdir logs/peers/
-	mkdir logs/indexing_server/
 
 test_data:
 	cp ../data/p1/* peers/p1/

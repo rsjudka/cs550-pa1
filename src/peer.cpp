@@ -53,7 +53,7 @@ class Peer {
         }
         
         void error(std::string type) {
-            std::cerr << '\n' << type << "exiting program\n" << std::endl;
+            std::cerr << "\n[" << type << "] exiting program\n" << std::endl;
             exit(1);
         }
 
@@ -288,6 +288,7 @@ class Peer {
                             }
                             fclose(file);
                             std::cout << "\nfile \"" << filename << "\" downloaded as \"" << local_filename << "\"\n" << std::endl;
+                            std::cout << "\ndislpay file '" << local_filename << "'\n. . .\n" << std::endl;
                             log(client_log, "file download", "file download successful");
                         }
                     }
@@ -325,6 +326,8 @@ class Peer {
             
             getsockname(socket_fd, (struct sockaddr *)&addr, &addr_size);
             port = ntohs(addr.sin_port);
+
+            std::cout << "current client id: " << port << '\n' << std::endl;
 
             std::string log_name_prefix = "logs/peers/" + std::to_string(port);
             server_log.open(log_name_prefix + "_server.log");

@@ -24,6 +24,10 @@
 #define MAX_STAT_MSG_SIZE 16
 
 
+int search_request_counter = 0;
+int retrieve_request_counter = 0;
+
+
 class Peer {
     private:
         std::vector<std::pair<std::string, time_t>> files;
@@ -41,6 +45,11 @@ class Peer {
         void log(std::ofstream &log_stream, std::string type, std::string msg) {
             std::lock_guard<std::mutex> guard(log_m);
             log_stream << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
+        }
+
+        void eval_log(std::ofstream &log_stream, int key, std::string type, std::string msg) {
+            std::lock_guard<std::mutex> guard(log_m);
+            log_stream << '!' << key << " [" << time_now() << "] [" << type << "] [" << msg  << "]\n" << std::endl;
         }
         
         void error(std::string type) {
@@ -186,6 +195,7 @@ class Peer {
             std::cout << "filename: ";
             char filename[MAX_FILENAME_SIZE];
             std::cin >> filename;
+            eval_log(client_log, search_request_counter, "search request", "start");
             if (send(server_socket_fd, "3", sizeof(char), 0) < 0) {
                 std::cout << "\nunexpected connection issue: no search performed\n" << std::endl;
                 log(client_log, "server unresponsive", "ignoring request");
@@ -207,6 +217,7 @@ class Peer {
                         std::cout << "\npeer(s) with file \"" << filename << "\": " << buffer << '\n' << std::endl;
                 }
             }
+            eval_log(client_log, search_request_counter++, "search request", "end");
         }
 
         std::string resolve_filename(std::string filename, std::string(peer)) {
@@ -225,6 +236,7 @@ class Peer {
             std::cout << "peer: ";
             char peer[6];
             std::cin >> peer;
+            eval_log(client_log, retrieve_request_counter, "retrieve request", "start");
             if (atoi(peer) == port) {
                 std::cout << "\npeer '" << peer << "' is current client: no retreival performed\n" << std::endl;
                 return;
@@ -236,9 +248,11 @@ class Peer {
                 return;
             }
             
+            eval_log(client_log, retrieve_request_counter, "retrieve request", "pause");
             std::cout << "filename: ";
             char filename[MAX_FILENAME_SIZE];
             std::cin >> filename;
+            eval_log(client_log, retrieve_request_counter, "retrieve request", "unpause");
             if (send(peer_socket_fd, filename, sizeof(filename), 0) < 0) {
                 std::cout << "\nunexpected connection issue: no retreival performed\n" << std::endl;
                 log(client_log, "peer unresponsive", "ignoring request");
@@ -279,6 +293,7 @@ class Peer {
                     }
                 }
             }
+            eval_log(client_log, retrieve_request_counter++, "retrieve request", "end");
             close(peer_socket_fd);
         }
 
@@ -332,7 +347,7 @@ class Peer {
 
                 switch (request[0]) {
                     case 's':
-                    case 'S': 
+                    case 'S':
                         search_request(server_socket_fd);
                         break;
                     case 'r':

@@ -35,7 +35,7 @@ class IndexingServer {
         void log(std::string type, std::string msg) {
             std::lock_guard<std::mutex> guard(log_m);
             server_log << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
-            std::cout << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
+            std::cout << '[' << time_now() << "] [" << type << "] [" << msg  << "]\n" << std::endl;
         }
         
         void error(std::string type) {

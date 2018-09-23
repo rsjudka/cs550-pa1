@@ -9,6 +9,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 
 #define PORT 9999
@@ -20,15 +21,31 @@ class IndexingServer {
     private:
         std::unordered_map<std::string, std::vector<int>> files_index;
 
-        void error(std::string msg) {
-            std::cerr << "[ERROR] " << msg << std::endl;
+        std::string time_now() {
+            std::chrono::high_resolution_clock::duration now = std::chrono::high_resolution_clock::now().time_since_epoch();
+            std::chrono::microseconds now_ms = std::chrono::duration_cast<std::chrono::microseconds>(now);
+            return std::to_string(now_ms.count());
+        }
+
+        void log(std::string type, std::string msg) {
+            std::cout << '[' << time_now() << "] [" << type << "] " << msg  << '\n' << std::endl;
+        }
+        
+        void error(std::string type) {
+            log(type, "exiting program");
             exit(1);
+        }
+
+        void remove_client(int client_socket_fd, int client_id, std::string type) {
+            log(type, "closing connection and cleaning up index");
+            files_index_cleanup(client_id);
+            close(client_socket_fd);
         }
 
         void handle_client_requests(int client_socket_fd) {
             int client_id;
             if (recv(client_socket_fd, &client_id, sizeof(client_id), 0) < 0) {
-                std::cout << "client unidentified: closing connection\n" << std::endl;
+                log("client unidentified", "closing connection");
                 close(client_socket_fd);
                 return;
             }
@@ -37,9 +54,7 @@ class IndexingServer {
             while (1) {
                 request = '0';
                 if (recv(client_socket_fd, &request, sizeof(request), 0) < 0) {
-                    std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
-                    files_index_cleanup(client_id);
-                    close(client_socket_fd);
+                    remove_client(client_socket_fd, client_id, "client unreachable");
                     return;
                 }
 
@@ -54,14 +69,10 @@ class IndexingServer {
                         search(client_socket_fd, client_id);
                         break;
                     case '0':
-                        std::cout << "client disconnected: closing connection and cleaning up index\n" << std::endl;
-                        files_index_cleanup(client_id);
-                        close(client_socket_fd);
+                        remove_client(client_socket_fd, client_id, "client disconnected");
                         return;
                     default:
-                        std::cout << "unexpected request: closing connection and cleaning up index\n" << std::endl;
-                        files_index_cleanup(client_id);
-                        close(client_socket_fd);
+                        remove_client(client_socket_fd, client_id, "unexpected request");
                         return;
                 }
             }
@@ -70,9 +81,7 @@ class IndexingServer {
         void registry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
-                files_index_cleanup(client_id);
-                close(client_socket_fd);
+                remove_client(client_socket_fd, client_id, "client unreachable");
                 return;
             }
             
@@ -84,9 +93,7 @@ class IndexingServer {
         void deregistry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
-                files_index_cleanup(client_id);
-                close(client_socket_fd);
+                remove_client(client_socket_fd, client_id, "client unreachable");
                 return;
             }
  
@@ -111,9 +118,7 @@ class IndexingServer {
         void search(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
-                files_index_cleanup(client_id);
-                close(client_socket_fd);
+                remove_client(client_socket_fd, client_id, "client unreachable");
                 return;
             }
 
@@ -131,9 +136,7 @@ class IndexingServer {
             char buffer_[MAX_MSG_SIZE];
             strcpy(buffer_, client_ids.str().c_str());
             if (send(client_socket_fd, buffer_, sizeof(buffer_), 0) < 0) {
-                std::cout << "client unreachable: closing connection and cleaning up index\n" << std::endl;
-                files_index_cleanup(client_id);
-                close(client_socket_fd);
+                remove_client(client_socket_fd, client_id, "client unreachable");
                 return;
             }
         }
@@ -165,7 +168,7 @@ class IndexingServer {
             socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
             if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
-                error("failed to start indexing server");
+                error("failed server binding");
         }
 
         void run() {
@@ -173,18 +176,23 @@ class IndexingServer {
             socklen_t addr_size = sizeof(addr);
             int client_socket_fd;
 
+            std::ostringstream client_identity;
             while (1) {
                 listen(socket_fd, 5);
 
                 if ((client_socket_fd = accept(socket_fd, (struct sockaddr*)&addr, &addr_size)) < 0) {
-                    std::cout << "failed client connection: " << inet_ntoa(addr.sin_addr) << '@' << ntohs(addr.sin_port) << '\n' << std::endl;
+                    log("failed client connection", "ignoring connection");
                     continue;
                 }
-                
-                std::cout << "client connection: " << inet_ntoa(addr.sin_addr) << '@' << ntohs(addr.sin_port) << '\n' << std::endl;
+
+                client_identity << inet_ntoa(addr.sin_addr) << '@' << ntohs(addr.sin_port);
+                log("client connection", client_identity.str());
                 
                 std::thread t(&IndexingServer::handle_client_requests, this, client_socket_fd);
                 t.detach();
+
+                client_identity.str("");
+                client_identity.clear();
             }
         }
 

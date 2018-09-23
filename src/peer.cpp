@@ -13,6 +13,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 
 #define HOST "localhost"
@@ -76,33 +77,6 @@ class Peer {
                 }
             }
             close(fd);
-        }
-
-    public:
-        std::string files_directory_path;
-        int port;
-        int socket_fd;
-
-        Peer(std::string path) {
-            files_directory_path = path;
-            if (files_directory_path.back() != '/')
-                files_directory_path += '/';
-            files = get_files();
-
-            struct sockaddr_in addr;
-            socklen_t addr_size = sizeof(addr);
-            bzero((char*)&addr, addr_size);
-            
-            addr.sin_family = AF_INET;
-            addr.sin_addr.s_addr = INADDR_ANY;
-
-            socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-            if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
-                error("failed to start peer server");
-            
-            getsockname(socket_fd, (struct sockaddr *)&addr, &addr_size);
-            port = ntohs(addr.sin_port);
         }
 
         std::vector<std::pair<std::string, time_t>> get_files() {
@@ -265,6 +239,33 @@ class Peer {
                 fclose(file);
             }
             close(socket_fd);
+        }
+
+    public:
+        std::string files_directory_path;
+        int port;
+        int socket_fd;
+
+        Peer(std::string path) {
+            files_directory_path = path;
+            if (files_directory_path.back() != '/')
+                files_directory_path += '/';
+            files = get_files();
+
+            struct sockaddr_in addr;
+            socklen_t addr_size = sizeof(addr);
+            bzero((char*)&addr, addr_size);
+            
+            addr.sin_family = AF_INET;
+            addr.sin_addr.s_addr = INADDR_ANY;
+
+            socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+            if (bind(socket_fd, (struct sockaddr*)&addr, addr_size) < 0)
+                error("failed to start peer server");
+            
+            getsockname(socket_fd, (struct sockaddr *)&addr, &addr_size);
+            port = ntohs(addr.sin_port);
         }
         
         void run_client() {

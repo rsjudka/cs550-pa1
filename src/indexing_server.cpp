@@ -54,7 +54,7 @@ class IndexingServer {
             while (1) {
                 request = '0';
                 if (recv(client_socket_fd, &request, sizeof(request), 0) < 0) {
-                    remove_client(client_socket_fd, client_id, "client unreachable");
+                    remove_client(client_socket_fd, client_id, "client unresponsive");
                     return;
                 }
 
@@ -81,7 +81,7 @@ class IndexingServer {
         void registry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                remove_client(client_socket_fd, client_id, "client unreachable");
+                remove_client(client_socket_fd, client_id, "client unresponsive");
                 return;
             }
             
@@ -93,7 +93,7 @@ class IndexingServer {
         void deregistry(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                remove_client(client_socket_fd, client_id, "client unreachable");
+                remove_client(client_socket_fd, client_id, "client unresponsive");
                 return;
             }
  
@@ -118,7 +118,7 @@ class IndexingServer {
         void search(int client_socket_fd, int client_id) {
             char buffer[MAX_FILENAME_SIZE];
             if (recv(client_socket_fd, buffer, sizeof(buffer), 0) < 0) {
-                remove_client(client_socket_fd, client_id, "client unreachable");
+                remove_client(client_socket_fd, client_id, "client unresponsive");
                 return;
             }
 
@@ -136,7 +136,7 @@ class IndexingServer {
             char buffer_[MAX_MSG_SIZE];
             strcpy(buffer_, client_ids.str().c_str());
             if (send(client_socket_fd, buffer_, sizeof(buffer_), 0) < 0) {
-                remove_client(client_socket_fd, client_id, "client unreachable");
+                remove_client(client_socket_fd, client_id, "client unresponsive");
                 return;
             }
         }
@@ -186,7 +186,7 @@ class IndexingServer {
                 }
 
                 client_identity << inet_ntoa(addr.sin_addr) << '@' << ntohs(addr.sin_port);
-                log("client connection", client_identity.str());
+                log("client connected", client_identity.str());
                 
                 std::thread t(&IndexingServer::handle_client_requests, this, client_socket_fd);
                 t.detach();

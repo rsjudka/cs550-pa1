@@ -1,0 +1,21 @@
+current client id: 43231
+
+request [(s)earch|(r)etrieve|(q)uit]: l
+request [(s)earch|(r)etrieve|(q)uit]: s
+filename: r.txt
+
+peer(s) with file "r.txt": 37965,41703
+
+request [(s)earch|(r)etrieve|(q)uit]: r
+peer: 37965
+filename: r.txt
+
+file "r.txt" downloaded as "r.txt"
+
+
+dislpay file 'r.txt'
+. . .
+
+request [(s)earch|(r)etrieve|(q)uit]: l
+request [(s)earch|(r)etrieve|(q)uit]: l
+request [(s)earch|(r)etrieve|(q)uit]: l

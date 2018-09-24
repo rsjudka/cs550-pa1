@@ -32,13 +32,13 @@ test_data:
 	cp ../data/p3/* peers/p3/
 
 eval_test_data:
-	cp ../data/p3/* peers/p4/
-	cp ../data/p3/* peers/p5/
-	cp ../data/p3/* peers/p6/
-	cp ../data/p2/* peers/p7/
-	cp ../data/p3/* peers/p8/
-	cp ../data/p3/* peers/p9/
-	cp ../data/p3/* peers/p10/
+	cp ../data/p4/* peers/p4/
+	cp ../data/p5/* peers/p5/
+	cp ../data/p6/* peers/p6/
+	cp ../data/p7/* peers/p7/
+	cp ../data/p8/* peers/p8/
+	cp ../data/p9/* peers/p9/
+	cp ../data/p10/* peers/p10/
 
 clean:
 	rm indexing_server peer

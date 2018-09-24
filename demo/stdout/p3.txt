@@ -1,0 +1,3 @@
+current client id: 41703
+
+request [(s)earch|(r)etrieve|(q)uit]: q

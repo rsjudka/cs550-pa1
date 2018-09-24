@@ -1,0 +1,8 @@
+current client id: 37965
+
+request [(s)earch|(r)etrieve|(q)uit]: s
+filename: r.txt
+
+peer(s) with file "r.txt": 37965,41703,43231
+
+request [(s)earch|(r)etrieve|(q)uit]: q
